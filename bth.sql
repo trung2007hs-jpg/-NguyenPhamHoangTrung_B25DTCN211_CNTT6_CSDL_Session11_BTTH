@@ -232,12 +232,10 @@ DELIMITER ;
 SET @msg = '';
 
 -- Kịch bản 1: Kê đơn bình thường (Không giảm giá)
--- Bệnh nhân 1 mua 2 Amoxicillin (2 * 15.000 = 30.000)
 CALL ProcessPrescription(1, 1, 2, NULL, @msg);
 SELECT @msg AS Result, total_due FROM Patient_Invoices WHERE patient_id = 1;
 
 -- Kịch bản 2: Kê đơn có mã NV-RIKKEI (Giảm 50%)
--- Bệnh nhân 2 mua 4 Amoxicillin (4 * 15.000 = 60.000 -> Giảm còn 30.000)
 CALL ProcessPrescription(2, 1, 4, 'NV-RIKKEI', @msg);
 SELECT @msg AS Result, total_due FROM Patient_Invoices WHERE patient_id = 2;
 
