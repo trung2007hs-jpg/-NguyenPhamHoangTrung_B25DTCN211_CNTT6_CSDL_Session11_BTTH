@@ -168,6 +168,7 @@ INSERT INTO Wallets (patient_id, balance, status) VALUES
 (3, 1000000.00, 'Inactive'); -- Test Case 2: Nhiều tiền nhưng thẻ bị khóa
 
 DELIMITER //
+
 CREATE PROCEDURE ProcessPrescription(
     IN p_patient_id INT,
     IN p_medicine_id INT,
@@ -188,7 +189,7 @@ BEGIN
     -- 3. Kiểm tra xem kho có đủ thuốc hay không
     IF v_current_stock < p_quantity THEN
         -- Nếu không đủ, báo lỗi và kết thúc Procedure luôn
-        SET p_message = 'Thất bại: Kho không đủ thuốc';
+        SET p_message = 'Kho không đủ thuốc';
     ELSE
         -- 4. Nếu đủ thuốc, bắt đầu tính toán tiền bạc
         SET v_subtotal = p_quantity * v_unit_price;
@@ -203,6 +204,7 @@ BEGIN
         UPDATE Medicines 
         SET stock = stock - p_quantity 
         WHERE medicine_id = p_medicine_id;
+
         -- Bước B: Cập nhật công nợ cho bệnh nhân
         -- Kiểm tra xem bệnh nhân đã có tên trong bảng hóa đơn chưa
         IF EXISTS (SELECT 1 FROM Patient_Invoices WHERE patient_id = p_patient_id) THEN
@@ -217,7 +219,7 @@ BEGIN
             VALUES (p_patient_id, v_final_amount, NOW());
         END IF;
         -- 7. Trả về thông báo thành công
-        SET p_message = CONCAT('Thành công: Đã kê đơn. Tổng tiền: ', v_final_amount);
+        SET p_message = CONCAT('Đã kê đơn. Tổng tiền: ', v_final_amount);
     END IF;
 END //
 
