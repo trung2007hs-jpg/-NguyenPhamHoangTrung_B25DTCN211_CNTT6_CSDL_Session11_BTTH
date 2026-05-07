@@ -168,7 +168,6 @@ INSERT INTO Wallets (patient_id, balance, status) VALUES
 (3, 1000000.00, 'Inactive'); -- Test Case 2: Nhiều tiền nhưng thẻ bị khóa
 
 DELIMITER //
-
 CREATE PROCEDURE ProcessPrescription(
     IN p_patient_id INT,
     IN p_medicine_id INT,
@@ -177,50 +176,51 @@ CREATE PROCEDURE ProcessPrescription(
     OUT p_message VARCHAR(255)
 )
 BEGIN
-    -- Khai báo biến cục bộ
+    -- 1. Khai báo các biến để lưu trữ thông tin tạm thời
     DECLARE v_current_stock INT;
     DECLARE v_unit_price DECIMAL(18,2);
     DECLARE v_subtotal DECIMAL(18,2);
     DECLARE v_final_amount DECIMAL(18,2);
-    -- Lấy thông tin thuốc (Sử dụng FOR UPDATE để tránh tranh chấp kho)
+    -- 2. Lấy số lượng tồn kho và đơn giá hiện tại của thuốc
     SELECT stock, price INTO v_current_stock, v_unit_price 
     FROM Medicines 
-    WHERE medicine_id = p_medicine_id 
-    FOR UPDATE;
-    -- FOR UPDATE: Đặt lệnh "KHÓA" các dòng dữ liệu vừa tìm thấy.
-	-- Ngăn chặn các Procedure khác sửa đổi hoặc chiếm dòng này 
-	-- cho đến khi Transaction hiện tại kết thúc (COMMIT/ROLLBACK).
-    -- 1. Bẫy Out of Stock
+    WHERE medicine_id = p_medicine_id;
+    -- 3. Kiểm tra xem kho có đủ thuốc hay không
     IF v_current_stock < p_quantity THEN
+        -- Nếu không đủ, báo lỗi và kết thúc Procedure luôn
         SET p_message = 'Thất bại: Kho không đủ thuốc';
     ELSE
-        -- Bắt đầu giao dịch
-        START TRANSACTION;
-        -- 2. Tính toán tiền bạc
+        -- 4. Nếu đủ thuốc, bắt đầu tính toán tiền bạc
         SET v_subtotal = p_quantity * v_unit_price;
-        -- 3. Áp dụng mã giảm giá (NV-RIKKEI giảm 50%, các mã khác hoặc NULL giữ nguyên)
+        -- 5. Kiểm tra mã giảm giá (Dùng IF đơn giản)
         IF p_discount_code = 'NV-RIKKEI' THEN
-            SET v_final_amount = v_subtotal * 0.5;
+            SET v_final_amount = v_subtotal * 0.5; -- Giảm 50%
         ELSE
-            SET v_final_amount = v_subtotal;
+            SET v_final_amount = v_subtotal; -- Giữ nguyên giá
         END IF;
-        -- 4. Thực thi cập nhật
-        -- Bước A: Trừ kho
+        -- 6. Thực hiện cập nhật dữ liệu (Các bước chạy tuần tự)
+        -- Bước A: Trừ số lượng thuốc trong kho
         UPDATE Medicines 
         SET stock = stock - p_quantity 
         WHERE medicine_id = p_medicine_id;
-        -- Bước B: Cộng dồn nợ cho bệnh nhân
-        -- Sử dụng INSERT ... ON DUPLICATE KEY UPDATE để phòng trường hợp BN chưa có dòng hóa đơn
-        INSERT INTO Patient_Invoices (patient_id, total_due, last_updated)
-        VALUES (p_patient_id, v_final_amount, NOW())
-        ON DUPLICATE KEY UPDATE 
-            total_due = total_due + v_final_amount,
-            last_updated = NOW();
-        -- 5. Kết thúc thành công
-        SET p_message = 'Thành công: Đã xử lý đơn thuốc';
-        COMMIT;
+        -- Bước B: Cập nhật công nợ cho bệnh nhân
+        -- Kiểm tra xem bệnh nhân đã có tên trong bảng hóa đơn chưa
+        IF EXISTS (SELECT 1 FROM Patient_Invoices WHERE patient_id = p_patient_id) THEN
+            -- Nếu có rồi thì cộng thêm tiền vào nợ cũ
+            UPDATE Patient_Invoices 
+            SET total_due = total_due + v_final_amount,
+                last_updated = NOW()
+            WHERE patient_id = p_patient_id;
+        ELSE
+            -- Nếu chưa có thì tạo dòng mới cho bệnh nhân đó
+            INSERT INTO Patient_Invoices (patient_id, total_due, last_updated)
+            VALUES (p_patient_id, v_final_amount, NOW());
+        END IF;
+        -- 7. Trả về thông báo thành công
+        SET p_message = CONCAT('Thành công: Đã kê đơn. Tổng tiền: ', v_final_amount);
     END IF;
 END //
+
 DELIMITER ;
 
 -- Kịch bản kiểm thử (Test Cases)
