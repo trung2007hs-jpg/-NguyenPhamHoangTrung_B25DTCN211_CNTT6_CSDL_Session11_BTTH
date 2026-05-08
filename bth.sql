@@ -167,7 +167,7 @@ INSERT INTO Wallets (patient_id, balance, status) VALUES
 (2, 50000.00, 'Active'),     -- Test Case 3: Cháy ví (Chỉ có 50k, không đủ khám 200k)
 (3, 1000000.00, 'Inactive'); -- Test Case 2: Nhiều tiền nhưng thẻ bị khóa
 
-DELIMITER //
+DELIMITER $$
 
 CREATE PROCEDURE ProcessPrescription(
     IN p_patient_id INT,
@@ -221,9 +221,7 @@ BEGIN
         -- 7. Trả về thông báo thành công
         SET p_message = CONCAT('Đã kê đơn. Tổng tiền: ', v_final_amount);
     END IF;
-END //
-
-DELIMITER ;
+END $$;
 
 -- Kịch bản kiểm thử (Test Cases)
 -- Để kiểm tra, sử dụng biến @msg để hứng kết quả trả về.
